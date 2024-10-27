@@ -1,0 +1,5 @@
+**/.DS_Store
+
+# These will be re-made each time our project is saved
+**/Builds
+**/JuceLibraryCode
