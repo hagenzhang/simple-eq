@@ -91,10 +91,12 @@ void SimpleeqAudioProcessor::changeProgramName (int index, const juce::String& n
 }
 
 //==============================================================================
+// This is where all of the pre-playback initialization is done.
+
 void SimpleeqAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    
+    
 }
 
 void SimpleeqAudioProcessor::releaseResources()
@@ -129,12 +131,17 @@ bool SimpleeqAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 }
 #endif
 
+
+// This is where we receieve and process the blocks of audio data!
+// All of the guts of our plugin should be in this function (specifically, in the second for loop).
+// We need to make sure all the operations in here finish in a fixed amount of time!
 void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
+    // NOTE FROM JUCE PROJECT:
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -144,8 +151,7 @@ void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
+    // NOTE FROM JUCE PROJECT:
     // Make sure to reset the state if your inner loop is processing
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
@@ -166,7 +172,12 @@ bool SimpleeqAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* SimpleeqAudioProcessor::createEditor()
 {
-    return new SimpleeqAudioProcessorEditor (*this);
+    // before officially implementing the GUI, we can visualize our implemented parameters by
+    // using the generic audio processor editor.
+    return new juce::GenericAudioProcessorEditor(*this);
+    
+    
+    // return new SimpleeqAudioProcessorEditor (*this);
 }
 
 //==============================================================================
@@ -176,6 +187,62 @@ void SimpleeqAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
 }
+
+juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"lowcutfreq", 1},
+                                                           "LowCut Freq",
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           20.f));
+
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"highcutfreq", 2},
+                                                           "HighCut Freq",
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           200000.f));
+    
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakfreq", 3},
+                                                           "Peak Freq",
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           750.f));
+    
+    // here we're using db instead of frequency (hz), so the values change accordingly
+    // a typical range to use is +- 24 db, and the step change is 0.05 of a decible.
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakgain", 4},
+                                                           "Peak Gain",
+                                                           juce::NormalisableRange<float>(-24.f, 24.f, 0.5f, 1.f),
+                                                           0.0f));
+    
+    layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakquality", 5},
+                                                           "Peak Quality",
+                                                           juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f),
+                                                           1.f));
+    
+    
+    // for lowcut and highcut filters, we want to adjust steepness, we'll get 4 different options.
+    // cut option responses are expressed as decibles per octave, and the math typically rounds out
+    // to multiples of 6 or 12 db/octave
+    // we will use: 12, 24, 36, 48
+    // because our options are more limited, we use the AudioParameterChoice instead.
+    juce::StringArray stringArray;
+    for (int i = 0; i < 4; i++)
+    {
+    juce::String str;
+        str << (12 + i*12);
+        str << " db/Oct";
+        stringArray.add(str);
+    }
+    
+    layout.add(std::make_unique<juce::AudioParameterChoice>("LowCut Slope", "LowCut Slope", stringArray, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>("HighCut Slope", "HighCut Slope", stringArray, 0));
+    
+    // we have our parameters setup now in a ParameterLayout, so we can just pass the layout to the
+    // AudioProcessorValueTreeState constructor (code is in the header file);
+    return layout;
+}
+
+
 
 void SimpleeqAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {

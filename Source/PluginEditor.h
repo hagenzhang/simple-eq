@@ -12,8 +12,7 @@
 #include "PluginProcessor.h"
 
 //==============================================================================
-/**
-*/
+// This is where we set up all of our visual components.
 class SimpleeqAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:

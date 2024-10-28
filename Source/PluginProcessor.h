@@ -21,14 +21,23 @@ public:
     ~SimpleeqAudioProcessor() override;
 
     //==============================================================================
+    // prepareToPlay: called by host whenever the plugin is about to start playback
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
 
    #ifndef JucePlugin_PreferredChannelConfigurations
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
    #endif
-
+    
+    // processBlock: called when you hit play button in the transport control
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    
+    // Note:
+    // when the play button is hit, the host will send buffers at a regular rate
+    // into your plugin, and it's the job of the plugin to return the audio after
+    // it has been processed. if you add latency or interrupt the chain of events,
+    // it can cause audio pops and glitches, which may lead to damaged speakers or
+    // even worse, damaged ears! all work needs to be done in a fixed amount of time.
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -51,9 +60,28 @@ public:
 
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
+    
+    
     void setStateInformation (const void* data, int sizeInBytes) override;
-
+    
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    juce::AudioProcessorValueTreeState apvts {*this, nullptr, "Parameters", createParameterLayout()};
+    
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleeqAudioProcessor)
 };
+
+
+/*
+ Notes from the tutorial:
+ 
+ Audio plugins rely on parameters to control the parts of the DSP.
+ JUCE uses the "AudioProcessorValueTreeState" (a class) to coordinate syncing the
+ knobs on the GUI and the parameters of the DSP (It needs to be public!).
+ 
+ 
+  
+ 
+ 
+ */
