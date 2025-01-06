@@ -106,6 +106,13 @@ void SimpleeqAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // we have to prepare both the left and right chains.
     leftChain.prepare(spec);
     rightChain.prepare(spec);
+    
+    // after you have your chain settings, you can start producing coefficients using the static helper functions
+    // that are part of the IIR coefficients class.
+    auto chainSettings = getChainSettings(apvts);
+    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peakFreq, chainSettings.peakQuality,
+                                                                                juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+    
 }
 
 void SimpleeqAudioProcessor::releaseResources()
@@ -207,6 +214,27 @@ void SimpleeqAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+}
+
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
+{
+    ChainSettings settings;
+    
+    // apvts.getParameter("ParamName")->getValue(); <-- this gives us a normalized value, which is bad.
+    // All of the functions that produce coefficients for our filter expects "real world" values, not
+    // normalized values, so we use getRawParameterValue instead to retrieve values from apvts.
+    // The values from this function are "atomic", which is handy when interacting with the GUI, and the
+    // thread safety is a plus.
+    
+    settings.lowCutFreq = apvts.getRawParameterValue("LowCut Freq") -> load();
+    settings.highCutFreq = apvts.getRawParameterValue("HighCut Freq") -> load();
+    settings.peakFreq = apvts.getRawParameterValue("Peak Freq") -> load();
+    settings.peakGainInDecibels = apvts.getRawParameterValue("Peak Gain") -> load();
+    settings.peakQuality = apvts.getRawParameterValue("Peak Quality") -> load();
+    settings.lowCutSlope = apvts.getRawParameterValue("LowCut Slope") -> load();
+    settings.highCutSlope = apvts.getRawParameterValue("HighCut Slope") -> load();
+    
+    return settings;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::createParameterLayout()
