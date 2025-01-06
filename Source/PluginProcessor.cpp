@@ -95,8 +95,17 @@ void SimpleeqAudioProcessor::changeProgramName (int index, const juce::String& n
 
 void SimpleeqAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    // We need to prepare our filters before we use them.
+    // This is achieved by passing a process spec object to the chain.
     
+    juce::dsp::ProcessSpec spec;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = 1; // mono audio can only handle 1 channel.
+    spec.sampleRate = sampleRate;
     
+    // we have to prepare both the left and right chains.
+    leftChain.prepare(spec);
+    rightChain.prepare(spec);
 }
 
 void SimpleeqAudioProcessor::releaseResources()
@@ -137,6 +146,13 @@ bool SimpleeqAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
 // We need to make sure all the operations in here finish in a fixed amount of time!
 void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    // Processor chain requires a processing context to be passed into it to run audio through the
+    // links in the Chain. To make a processing context, we need to supply it with an audio block instance.
+    
+    // The processBlock function is called by the host, and is given a buffer whichh can have any
+    // number of channels. We need to extract the left and right channels (channels 0 and 1, respectively),
+    // from this buffer.
+    
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
@@ -156,12 +172,18 @@ void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-
-        // ..do something to the data...
-    }
+    
+    juce::dsp::AudioBlock<float> block(buffer); // start by initializing an AudioBlock, wrapping the buffer.
+    
+    // retrieve the left and right audio blocks
+    auto leftBlock = block.getSingleChannelBlock(0);
+    auto rightBlock = block.getSingleChannelBlock(1);
+    
+    // initialize the left and right audio contexts to pass into the chain (see PluginProcessor.h for notes).
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+    leftChain.process(leftContext);
+    rightChain.process(rightContext);
 }
 
 //==============================================================================
@@ -175,7 +197,6 @@ juce::AudioProcessorEditor* SimpleeqAudioProcessor::createEditor()
     // before officially implementing the GUI, we can visualize our implemented parameters by
     // using the generic audio processor editor.
     return new juce::GenericAudioProcessorEditor(*this);
-    
     
     // return new SimpleeqAudioProcessorEditor (*this);
 }
@@ -214,6 +235,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::crea
                                                            juce::NormalisableRange<float>(-24.f, 24.f, 0.5f, 1.f),
                                                            0.0f));
     
+    // how "tight" or "wide" the band is, or Q value
     layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakquality", 5},
                                                            "Peak Quality",
                                                            juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f),
