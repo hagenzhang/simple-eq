@@ -110,8 +110,19 @@ void SimpleeqAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // after you have your chain settings, you can start producing coefficients using the static helper functions
     // that are part of the IIR coefficients class.
     auto chainSettings = getChainSettings(apvts);
-    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, chainSettings.peakFreq, chainSettings.peakQuality,
+    
+    // IIR::Coefficients are reference-counted objects that own a juce::Array<float>.
+    // These helper functions return instances allocated on the heap.
+    // You need to dereference them to copy the underlying coefficients array.
+    // Tip from tutorial: allocating on the heap in an audio callback is bad, but we will ignore that poor design decision here.
+    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                                                chainSettings.peakFreq,
+                                                                                chainSettings.peakQuality,
                                                                                 juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+    
+    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
+    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
+    
     
 }
 
@@ -164,7 +175,7 @@ void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // NOTE FROM JUCE PROJECT:
+    
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -173,8 +184,19 @@ void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+    
+    
+    // Tip from tutorial: always update your audio process parameters before you run audio through them.
+    auto chainSettings = getChainSettings(apvts);
+    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+                                                                                chainSettings.peakFreq,
+                                                                                chainSettings.peakQuality,
+                                                                                juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+    
+    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
+    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
 
-    // NOTE FROM JUCE PROJECT:
+    
     // Make sure to reset the state if your inner loop is processing
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
@@ -226,11 +248,11 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     // The values from this function are "atomic", which is handy when interacting with the GUI, and the
     // thread safety is a plus.
     
-    settings.lowCutFreq = apvts.getRawParameterValue("LowCut Freq") -> load();
-    settings.highCutFreq = apvts.getRawParameterValue("HighCut Freq") -> load();
-    settings.peakFreq = apvts.getRawParameterValue("Peak Freq") -> load();
-    settings.peakGainInDecibels = apvts.getRawParameterValue("Peak Gain") -> load();
-    settings.peakQuality = apvts.getRawParameterValue("Peak Quality") -> load();
+    settings.lowCutFreq = apvts.getRawParameterValue("lowcutfreq") -> load();
+    settings.highCutFreq = apvts.getRawParameterValue("highcutfreq") -> load();
+    settings.peakFreq = apvts.getRawParameterValue("peakfreq") -> load();
+    settings.peakGainInDecibels = apvts.getRawParameterValue("peakgain") -> load();
+    settings.peakQuality = apvts.getRawParameterValue("peakquality") -> load();
     settings.lowCutSlope = apvts.getRawParameterValue("LowCut Slope") -> load();
     settings.highCutSlope = apvts.getRawParameterValue("HighCut Slope") -> load();
     
@@ -243,30 +265,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::crea
     
     layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"lowcutfreq", 1},
                                                            "LowCut Freq",
-                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 0.25f),
                                                            20.f));
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"highcutfreq", 2},
                                                            "HighCut Freq",
-                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 0.25f),
                                                            200000.f));
     
     layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakfreq", 3},
                                                            "Peak Freq",
-                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 1.f),
+                                                           juce::NormalisableRange<float>(20.f, 20000.f, 1.f, 0.25f),
                                                            750.f));
     
     // here we're using db instead of frequency (hz), so the values change accordingly
     // a typical range to use is +- 24 db, and the step change is 0.05 of a decible.
     layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakgain", 4},
                                                            "Peak Gain",
-                                                           juce::NormalisableRange<float>(-24.f, 24.f, 0.5f, 1.f),
+                                                           juce::NormalisableRange<float>(-24.f, 24.f, 0.5f, 0.25f),
                                                            0.0f));
     
     // how "tight" or "wide" the band is, or Q value
     layout.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID {"peakquality", 5},
                                                            "Peak Quality",
-                                                           juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 1.f),
+                                                           juce::NormalisableRange<float>(0.1f, 10.f, 0.05f, 0.25f),
                                                            1.f));
     
     
