@@ -111,17 +111,7 @@ void SimpleeqAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     // that are part of the IIR coefficients class.
     auto chainSettings = getChainSettings(apvts);
     
-    // IIR::Coefficients are reference-counted objects that own a juce::Array<float>.
-    // These helper functions return instances allocated on the heap.
-    // You need to dereference them to copy the underlying coefficients array.
-    // Tip from tutorial: allocating on the heap in an audio callback is bad, but we will ignore that poor design decision here.
-    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
-                                                                                chainSettings.peakFreq,
-                                                                                chainSettings.peakQuality,
-                                                                                juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
-    
-    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
-    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
+    updatePeakFilter(chainSettings);
     
     // Refer to the implementation of this function for how this works.
     // Take a look at the logic for even number orders.
@@ -282,13 +272,8 @@ void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     
     // Tip from tutorial: always update your audio process parameters before you run audio through them.
     auto chainSettings = getChainSettings(apvts);
-    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
-                                                                                chainSettings.peakFreq,
-                                                                                chainSettings.peakQuality,
-                                                                                juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
     
-    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
-    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoefficients;
+    updatePeakFilter(chainSettings);
     
     auto cutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
                                                                                                        getSampleRate(),
@@ -438,6 +423,30 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     
     return settings;
 }
+
+// Updates all of the settings in the peak filter chain.
+void SimpleeqAudioProcessor::updatePeakFilter(const ChainSettings &chainSettings)
+{
+    // IIR::Coefficients are reference-counted objects that own a juce::Array<float>.
+    // These helper functions return instances allocated on the heap.
+    // You need to dereference them to copy the underlying coefficients array.
+    // Tip from tutorial: allocating on the heap in an audio callback is bad, but we will ignore that poor design decision here.
+    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
+                                                                                chainSettings.peakFreq,
+                                                                                chainSettings.peakQuality,
+                                                                                juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+    
+    updateCoefficients(leftChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
+    updateCoefficients(rightChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
+}
+
+
+// We update Coefficients a lot, so this is a helper function to achieve that.
+void SimpleeqAudioProcessor::updateCoefficients(Coefficients &old, const Coefficients &replacements)
+{
+    *old = *replacements;
+}
+
 
 juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::createParameterLayout()
 {
