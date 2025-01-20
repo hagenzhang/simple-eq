@@ -107,41 +107,8 @@ void SimpleeqAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     leftChain.prepare(spec);
     rightChain.prepare(spec);
     
-    // after you have your chain settings, you can start producing coefficients using the static helper functions
-    // that are part of the IIR coefficients class.
-    auto chainSettings = getChainSettings(apvts);
-    
-    updatePeakFilter(chainSettings);
-    
-    // Refer to the implementation of this function for how this works.
-    // Take a look at the logic for even number orders.
-    // It will create 1 IIR filter coefficient object for every 2 orders.
-    // We need to produce required number of filter coefficient objects based on the slope param of the filter.
-    // This slope parameter had 4 choices, as multiples of 12 (slope -> db/oct, 0 -> 12, 1 -> 24, 2 -> 35,  3 -> 48).
-    // So, for a slope of 12, we would need an order of 2 for 1 IIR filter object,
-    // for a slope of 24 we would need an order of 4 for 2 IIR filter objects, and so on and so forth.
-    auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
-                                                                                                       sampleRate,
-                                                                                                       2 * (chainSettings.lowCutSlope + 1));
-    
-    auto& leftLowCut = leftChain.get<ChainPositions::LowCut>();
-    updateCutFilter(leftLowCut, lowCutCoefficients, (Slope)chainSettings.lowCutSlope);
-    
-    auto& rightLowCut = rightChain.get<ChainPositions::LowCut>();
-    updateCutFilter(rightLowCut, lowCutCoefficients, (Slope)chainSettings.lowCutSlope);
-    
-    
-    
-    auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
-                                                                                                       sampleRate,
-                                                                                                           2 * (chainSettings.highCutSlope + 1));
-    
-    auto& leftHighCut = leftChain.get<ChainPositions::HighCut>();
-    updateCutFilter(leftHighCut, highCutCoefficients, (Slope)chainSettings.highCutSlope);
-    
-    auto& rightHighCut = rightChain.get<ChainPositions::HighCut>();
-    updateCutFilter(rightHighCut, highCutCoefficients, (Slope)chainSettings.highCutSlope);
-    
+    updateFilters();
+
 }
 
 void SimpleeqAudioProcessor::releaseResources()
@@ -205,29 +172,7 @@ void SimpleeqAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     
     
     // Tip from tutorial: always update your audio process parameters before you run audio through them.
-    auto chainSettings = getChainSettings(apvts);
-    
-    updatePeakFilter(chainSettings);
-    
-    auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
-                                                                                                       getSampleRate(),
-                                                                                                       2 * (chainSettings.lowCutSlope + 1));
-    auto& leftLowCut = leftChain.get<ChainPositions::LowCut>();
-    updateCutFilter(leftLowCut, lowCutCoefficients, (Slope)chainSettings.lowCutSlope);
-    
-    auto& rightLowCut = rightChain.get<ChainPositions::LowCut>();
-    updateCutFilter(rightLowCut, lowCutCoefficients, (Slope)chainSettings.lowCutSlope);
-    
-    
-    auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
-                                                                                                          getSampleRate(),
-                                                                                                           2 * (chainSettings.highCutSlope + 1));
-    
-    auto& leftHighCut = leftChain.get<ChainPositions::HighCut>();
-    updateCutFilter(leftHighCut, highCutCoefficients, (Slope)chainSettings.highCutSlope);
-    
-    auto& rightHighCut = rightChain.get<ChainPositions::HighCut>();
-    updateCutFilter(rightHighCut, highCutCoefficients, (Slope)chainSettings.highCutSlope);
+    updateFilters();
     
     
     // Make sure to reset the state if your inner loop is processing
@@ -269,6 +214,24 @@ void SimpleeqAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    
+    // Note: state is stored as a JUCE Value Tree, and trees serialize to memory very easily
+    // We can use memory output streams to write apvts state to the memory block (destData).
+    
+    juce::MemoryOutputStream mos(destData, true);
+    apvts.state.writeToStream(mos);
+}
+
+void SimpleeqAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    // You should use this method to restore your parameters from this memory block,
+    // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    if (tree.isValid())
+    {
+        apvts.replaceState(tree);
+        updateFilters();
+    }
 }
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
@@ -314,6 +277,53 @@ void SimpleeqAudioProcessor::updateCoefficients(Coefficients &old, const Coeffic
 {
     *old = *replacements;
 }
+
+
+void SimpleeqAudioProcessor::updateLowCutFilters(const ChainSettings &chainSettings)
+{
+    // Refer to the implementation of the designIIRHighpassHighOrderButterworthMethod function for how this works.
+    // Take a look at the logic for even number orders.
+    // It will create 1 IIR filter coefficient object for every 2 orders.
+    // We need to produce required number of filter coefficient objects based on the slope param of the filter.
+    // This slope parameter had 4 choices, as multiples of 12 (slope -> db/oct, 0 -> 12, 1 -> 24, 2 -> 35,  3 -> 48).
+    // So, for a slope of 12, we would need an order of 2 for 1 IIR filter object,
+    // for a slope of 24 we would need an order of 4 for 2 IIR filter objects, and so on and so forth.
+    auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
+                                                                                                       getSampleRate(),
+                                                                                                       2 * (chainSettings.lowCutSlope + 1));
+    auto& leftLowCut = leftChain.get<ChainPositions::LowCut>();
+    auto& rightLowCut = rightChain.get<ChainPositions::LowCut>();
+    
+    updateCutFilter(leftLowCut, lowCutCoefficients, (Slope)chainSettings.lowCutSlope);
+    updateCutFilter(rightLowCut, lowCutCoefficients, (Slope)chainSettings.lowCutSlope);
+}
+
+void SimpleeqAudioProcessor::updateHighCutFilters(const ChainSettings &chainSettings)
+{
+    auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
+                                                                                                          getSampleRate(),
+                                                                                                           2 * (chainSettings.highCutSlope + 1));
+    
+    auto& leftHighCut = leftChain.get<ChainPositions::HighCut>();
+    auto& rightHighCut = rightChain.get<ChainPositions::HighCut>();
+    
+    updateCutFilter(leftHighCut, highCutCoefficients, (Slope)chainSettings.highCutSlope);
+    updateCutFilter(rightHighCut, highCutCoefficients, (Slope)chainSettings.highCutSlope);
+}
+
+void SimpleeqAudioProcessor::updateFilters()
+{
+    auto chainSettings = getChainSettings(apvts);
+    
+    // after you have your chain settings, you can start producing coefficients using the static helper functions
+    // that are part of the IIR coefficients class.
+    
+    updateLowCutFilters(chainSettings);
+    updatePeakFilter(chainSettings);
+    updateHighCutFilters(chainSettings);
+}
+
+
 
 juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::createParameterLayout()
 {
@@ -371,12 +381,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::crea
 }
 
 
-
-void SimpleeqAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
-{
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
-}
 
 //==============================================================================
 // This creates new instances of the plugin..
