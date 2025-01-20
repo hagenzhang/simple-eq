@@ -203,9 +203,10 @@ juce::AudioProcessorEditor* SimpleeqAudioProcessor::createEditor()
 {
     // before officially implementing the GUI, we can visualize our implemented parameters by
     // using the generic audio processor editor.
-    return new juce::GenericAudioProcessorEditor(*this);
+    // return new juce::GenericAudioProcessorEditor(*this);
     
-    // return new SimpleeqAudioProcessorEditor (*this);
+    // without any changes, this will simply say "Hello World".
+    return new SimpleeqAudioProcessorEditor (*this);
 }
 
 //==============================================================================
