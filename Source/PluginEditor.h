@@ -45,6 +45,20 @@ private:
     lowCutSlopeSlider,
     highCutSlopeSlider;
     
+    using APVTS = juce::AudioProcessorValueTreeState;
+    using Attachment = APVTS::SliderAttachment;
+    
+    Attachment peakFreqSliderAttachment,
+        peakGainSliderAttachment,
+        peakQualitySliderAttachment,
+        lowCutFreqSliderAttachment,
+        highCutFreqSliderAttachment,
+        lowCutSlopeSliderAttachment,
+        highCutSlopeSliderAttachment;
+    
+    
+    
+    
     // When you have a list of objects that you will do the same thing with, you can add them all to a vector
     // so you can iterate through them all easily.
     std::vector<juce::Component*> getComps();

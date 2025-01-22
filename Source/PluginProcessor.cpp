@@ -250,8 +250,8 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     settings.peakFreq = apvts.getRawParameterValue("peakfreq") -> load();
     settings.peakGainInDecibels = apvts.getRawParameterValue("peakgain") -> load();
     settings.peakQuality = apvts.getRawParameterValue("peakquality") -> load();
-    settings.lowCutSlope = static_cast<Slope>(apvts.getRawParameterValue("LowCut Slope") -> load());
-    settings.highCutSlope = static_cast<Slope>(apvts.getRawParameterValue("HighCut Slope") -> load());
+    settings.lowCutSlope = static_cast<Slope>(apvts.getRawParameterValue("lowcutslope") -> load());
+    settings.highCutSlope = static_cast<Slope>(apvts.getRawParameterValue("highcutslope") -> load());
     
     return settings;
 }
@@ -373,8 +373,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleeqAudioProcessor::crea
         stringArray.add(str);
     }
     
-    layout.add(std::make_unique<juce::AudioParameterChoice>("LowCut Slope", "LowCut Slope", stringArray, 0));
-    layout.add(std::make_unique<juce::AudioParameterChoice>("HighCut Slope", "HighCut Slope", stringArray, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>("lowcutslope", "LowCut Slope", stringArray, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>("highcutslope", "HighCut Slope", stringArray, 0));
     
     // we have our parameters setup now in a ParameterLayout, so we can just pass the layout to the
     // AudioProcessorValueTreeState constructor (code is in the header file);

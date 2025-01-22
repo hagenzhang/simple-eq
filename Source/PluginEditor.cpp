@@ -1,17 +1,24 @@
 /*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin editor.
-
-  ==============================================================================
-*/
+ ==============================================================================
+ 
+ This file contains the basic framework code for a JUCE plugin editor.
+ 
+ ==============================================================================
+ */
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 //==============================================================================
 SimpleeqAudioProcessorEditor::SimpleeqAudioProcessorEditor (SimpleeqAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p), audioProcessor (p),
+peakFreqSliderAttachment(audioProcessor.apvts, "peakfreq", peakFreqSlider),
+peakGainSliderAttachment(audioProcessor.apvts, "peakgain", peakGainSlider),
+peakQualitySliderAttachment(audioProcessor.apvts, "peakquality", peakQualitySlider),
+lowCutFreqSliderAttachment(audioProcessor.apvts, "lowcutfreq", lowCutFreqSlider),
+highCutFreqSliderAttachment(audioProcessor.apvts, "highcutfreq", highCutFreqSlider),
+lowCutSlopeSliderAttachment(audioProcessor.apvts, "lowcutslope", lowCutSlopeSlider),
+highCutSlopeSliderAttachment(audioProcessor.apvts, "highcutslope", highCutSlopeSlider)
 {
     
     for (auto& comp : getComps())
@@ -33,7 +40,7 @@ void SimpleeqAudioProcessorEditor::paint (juce::Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
+    
     g.setColour (juce::Colours::white);
     g.setFont (juce::FontOptions (15.0f));
     g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
