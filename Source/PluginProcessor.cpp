@@ -256,6 +256,15 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     return settings;
 }
 
+Coefficients makePeakFilter(const ChainSettings& chainSettings, double sampleRate)
+{
+    return juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate,
+                                                               chainSettings.peakFreq,
+                                                               chainSettings.peakQuality,
+                                                               juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+}
+
+
 // Updates all of the settings in the peak filter chain.
 void SimpleeqAudioProcessor::updatePeakFilter(const ChainSettings &chainSettings)
 {
@@ -263,10 +272,7 @@ void SimpleeqAudioProcessor::updatePeakFilter(const ChainSettings &chainSettings
     // These helper functions return instances allocated on the heap.
     // You need to dereference them to copy the underlying coefficients array.
     // Tip from tutorial: allocating on the heap in an audio callback is bad, but we will ignore that poor design decision here.
-    auto peakCoefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(),
-                                                                                chainSettings.peakFreq,
-                                                                                chainSettings.peakQuality,
-                                                                                juce::Decibels::decibelsToGain(chainSettings.peakGainInDecibels));
+    auto peakCoefficients = makePeakFilter(chainSettings, getSampleRate());
     
     updateCoefficients(leftChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
     updateCoefficients(rightChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
@@ -274,7 +280,7 @@ void SimpleeqAudioProcessor::updatePeakFilter(const ChainSettings &chainSettings
 
 
 // We update Coefficients a lot, so this is a helper function to achieve that.
-void SimpleeqAudioProcessor::updateCoefficients(Coefficients &old, const Coefficients &replacements)
+void /*SimpleeqAudioProcessor::*/updateCoefficients(Coefficients &old, const Coefficients &replacements)
 {
     *old = *replacements;
 }

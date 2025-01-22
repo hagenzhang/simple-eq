@@ -27,6 +27,39 @@ struct ChainSettings
 
 ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts);
 
+// JUCE DSP namespace uses a lot of template metaprogramming and nested namespaces, so we're gonna
+// create some type aliases to make things simpler.
+
+// filter aliases:
+using Filter = juce::dsp::IIR::Filter<float>;
+
+// Slope of cut filter is a multiple 12, each of the filters in the IIR Filter class has a response of 12db
+// per octave when configured as a low/high pass filter.
+// If we want a chain with a response of 48 db per octave, we need 4 filters.
+
+// We define a Chain, and pass in a processing context which runs through each element of the Chain
+// automatically. We put 4 filters in a processing Chain and pass in 1 single processing context,
+// and it will run through all 4 of the filters automatically.
+using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+// We can also configure these filters to work as a peak filter, shelf, notch, bandpass, etc.
+
+// We define a chain to represent 1 mono signal path: LowCut -> Parametric -> HighCut.
+using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
+
+
+enum ChainPositions // all of the filters we have in a Mono Chain
+{
+    LowCut,
+    Peak,
+    HighCut
+};
+
+using Coefficients = Filter::CoefficientsPtr; // alias for convenience
+void updateCoefficients(Coefficients& old, const Coefficients& replacements);
+
+Coefficients makePeakFilter(const ChainSettings& chainSettings, double sampleRate);
+
+
 //==============================================================================
 /**
 */
@@ -85,38 +118,11 @@ public:
     juce::AudioProcessorValueTreeState apvts {*this, nullptr, "Parameters", createParameterLayout()};
     
 private:
-    
-    // JUCE DSP namespace uses a lot of template metaprogramming and nested namespaces, so we're gonna
-    // create some type aliases to make things simpler.
-    
-    // filter aliases:
-    using Filter = juce::dsp::IIR::Filter<float>;
-    
-    // Slope of cut filter is a multiple 12, each of the filters in the IIR Filter class has a response of 12db
-    // per octave when configured as a low/high pass filter.
-    // If we want a chain with a response of 48 db per octave, we need 4 filters.
-    
-    // We define a Chain, and pass in a processing context which runs through each element of the Chain
-    // automatically. We put 4 filters in a processing Chain and pass in 1 single processing context,
-    // and it will run through all 4 of the filters automatically.
-    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
-    // We can also configure these filters to work as a peak filter, shelf, notch, bandpass, etc.
-    
-    // We define a chain to represent 1 mono signal path: LowCut -> Parametric -> HighCut.
-    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
     MonoChain leftChain, rightChain; // two chains for Stereo out.
-    
-    enum ChainPositions // all of the filters we have in a Mono Chain
-    {
-        LowCut,
-        Peak,
-        HighCut
-    };
     
     void updatePeakFilter(const ChainSettings& chainSettings);
     
-    using Coefficients = Filter::CoefficientsPtr; // alias for convenience
-    static void updateCoefficients(Coefficients& old, const Coefficients& replacements);
+
     
     template<int Index, typename ChainType, typename CoefficientType>
     void update(ChainType& chain, const CoefficientType& coefficients)
@@ -169,7 +175,4 @@ private:
  Our plugin will run stereo audio, which will require 2 channels of audio. The signal processing
  classes in the DSP namespace by default run 1 channel of audio, so we will have to duplicate a
  lot of things for 2 channels of audio.
-  
- 
- 
  */
