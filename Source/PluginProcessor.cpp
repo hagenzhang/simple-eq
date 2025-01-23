@@ -280,7 +280,7 @@ void SimpleeqAudioProcessor::updatePeakFilter(const ChainSettings &chainSettings
 
 
 // We update Coefficients a lot, so this is a helper function to achieve that.
-void /*SimpleeqAudioProcessor::*/updateCoefficients(Coefficients &old, const Coefficients &replacements)
+void updateCoefficients(Coefficients &old, const Coefficients &replacements)
 {
     *old = *replacements;
 }
@@ -288,16 +288,7 @@ void /*SimpleeqAudioProcessor::*/updateCoefficients(Coefficients &old, const Coe
 
 void SimpleeqAudioProcessor::updateLowCutFilters(const ChainSettings &chainSettings)
 {
-    // Refer to the implementation of the designIIRHighpassHighOrderButterworthMethod function for how this works.
-    // Take a look at the logic for even number orders.
-    // It will create 1 IIR filter coefficient object for every 2 orders.
-    // We need to produce required number of filter coefficient objects based on the slope param of the filter.
-    // This slope parameter had 4 choices, as multiples of 12 (slope -> db/oct, 0 -> 12, 1 -> 24, 2 -> 35,  3 -> 48).
-    // So, for a slope of 12, we would need an order of 2 for 1 IIR filter object,
-    // for a slope of 24 we would need an order of 4 for 2 IIR filter objects, and so on and so forth.
-    auto lowCutCoefficients = juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(chainSettings.lowCutFreq,
-                                                                                                       getSampleRate(),
-                                                                                                       2 * (chainSettings.lowCutSlope + 1));
+    auto lowCutCoefficients = makeLowCutFilter(chainSettings, getSampleRate());
     auto& leftLowCut = leftChain.get<ChainPositions::LowCut>();
     auto& rightLowCut = rightChain.get<ChainPositions::LowCut>();
     
@@ -307,9 +298,7 @@ void SimpleeqAudioProcessor::updateLowCutFilters(const ChainSettings &chainSetti
 
 void SimpleeqAudioProcessor::updateHighCutFilters(const ChainSettings &chainSettings)
 {
-    auto highCutCoefficients = juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(chainSettings.highCutFreq,
-                                                                                                          getSampleRate(),
-                                                                                                           2 * (chainSettings.highCutSlope + 1));
+    auto highCutCoefficients = makeHighCutFilter(chainSettings, getSampleRate());
     
     auto& leftHighCut = leftChain.get<ChainPositions::HighCut>();
     auto& rightHighCut = rightChain.get<ChainPositions::HighCut>();

@@ -26,6 +26,15 @@ highCutSlopeSliderAttachment(audioProcessor.apvts, "highcutslope", highCutSlopeS
         addAndMakeVisible(comp);
     }
     
+    const auto& params = audioProcessor.getParameters();
+    
+    for (auto& param : params)
+    {
+        param->addListener(this);
+    }
+    
+    startTimerHz(60); // 60 hz refresh rate
+    
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
     setSize (600, 400);
@@ -33,6 +42,12 @@ highCutSlopeSliderAttachment(audioProcessor.apvts, "highcutslope", highCutSlopeS
 
 SimpleeqAudioProcessorEditor::~SimpleeqAudioProcessorEditor()
 {
+    const auto& params = audioProcessor.getParameters();
+    for (auto& param : params)
+    {
+        param->removeListener(this);
+    }
+    
 }
 
 //==============================================================================
@@ -151,9 +166,17 @@ void SimpleeqAudioProcessorEditor::parameterValueChanged(int parameterIndex, flo
 
 void SimpleeqAudioProcessorEditor::timerCallback()
 {
+    DBG("params changed");
     if (parametersChanged.compareAndSetBool(false, true))
     {
+        // update the monochain
+        auto chainSettings = getChainSettings(audioProcessor.apvts);
+        auto peakCoefficients = makePeakFilter(chainSettings, audioProcessor.getSampleRate());
         
+        updateCoefficients(monoChain.get<ChainPositions::Peak>().coefficients, peakCoefficients);
+        
+        // signal a repaint
+        repaint();
     }
 }
 
