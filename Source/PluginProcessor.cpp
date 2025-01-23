@@ -313,7 +313,6 @@ void SimpleeqAudioProcessor::updateFilters()
     
     // after you have your chain settings, you can start producing coefficients using the static helper functions
     // that are part of the IIR coefficients class.
-    
     updateLowCutFilters(chainSettings);
     updatePeakFilter(chainSettings);
     updateHighCutFilters(chainSettings);

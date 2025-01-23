@@ -20,11 +20,30 @@ struct CustomRotarySlider : juce::Slider
     }
 };
 
+struct ResponseCurveComponent: juce::Component, juce::AudioProcessorParameter::Listener, juce::Timer
+{
+    ResponseCurveComponent(SimpleeqAudioProcessor&);
+    
+    ~ResponseCurveComponent();
+    
+    void parameterValueChanged(int parameterIndex, float newValue) override;
+    
+    void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override { };
+    
+    void timerCallback() override;
+    
+    void paint(juce::Graphics& g) override;
+    
+private:
+    SimpleeqAudioProcessor& audioProcessor;
+    juce::Atomic<bool> parametersChanged { false };
+    
+    MonoChain monoChain;
+};
+
 //==============================================================================
 // This is where we set up all of our visual components.
-class SimpleeqAudioProcessorEditor  : public juce::AudioProcessorEditor,
-juce::AudioProcessorParameter::Listener,
-juce::Timer
+class SimpleeqAudioProcessorEditor  : public juce::AudioProcessorEditor
 {
 public:
     SimpleeqAudioProcessorEditor (SimpleeqAudioProcessor&);
@@ -34,18 +53,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     
-    void parameterValueChanged(int parameterIndex, float newValue) override;
-    
-    void parameterGestureChanged(int parameterIndex, bool gestureIsStarting) override { };
-    
-    void timerCallback() override;
-
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     SimpleeqAudioProcessor& audioProcessor;
     
-    juce::Atomic<bool> parametersChanged { false };
+    ResponseCurveComponent responseCurveComponent;
     
     CustomRotarySlider peakFreqSlider,
     peakGainSlider,
@@ -72,8 +85,6 @@ private:
     // When you have a list of objects that you will do the same thing with, you can add them all to a vector
     // so you can iterate through them all easily.
     std::vector<juce::Component*> getComps();
-    
-    MonoChain monoChain;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleeqAudioProcessorEditor)
 };

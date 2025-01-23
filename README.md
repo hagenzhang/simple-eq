@@ -35,6 +35,8 @@ What to do research on:
       '''
     - "&highCutFreqSlider"
     - "for (auto& comp : getComps())" like why & first vs & last?
+4) Atomic Values
+
       
       
     
